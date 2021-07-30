@@ -14,13 +14,13 @@ from selenium.webdriver.support.wait import WebDriverWait
 
 from misc import ads_list, data
 
-key = 'af0deccbgcgidddjgnvljitntccdduijhdinfgjgfjir'
-
-with open('vk.txt', 'r') as vk:
-    vk = vk.read().split('\n')
-
-with open('ok.txt', 'r') as ok:
-    ok = ok.read().split('\n')
+# key = 'af0deccbgcgidddjgnvljitntccdduijhdinfgjgfjir'
+#
+# with open('vk.txt', 'r') as vk:
+#     vk = vk.read().split('\n')
+#
+# with open('ok.txt', 'r') as ok:
+#     ok = ok.read().split('\n')
 
 login_in_via_link = 'https://m.avito.ru/profile/settings#login?forceMode=true'
 title_xpath = '/html/body/div[1]/div/div[2]/div/div[2]/div/div[1]/div/div[1]/div/h1/span'

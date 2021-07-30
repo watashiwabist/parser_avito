@@ -13,13 +13,12 @@ import time
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
-from main import auth_vk, vk, ok
 from main_parser import start_vk
-from misc import ads_list, proxy_list, create_csv, LOGIN, PASSWORD, current_build, threads
+from misc import ads_list, proxy_list, create_csv, LOGIN, PASSWORD, current_build, threads, vk, ok, admin_builds
 
 
 class Ui_MainWindow(object):
-    def setupUi(self, MainWindow):
+    def setupUi(self, MainWindow, build=None):
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(758, 562)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
@@ -56,16 +55,16 @@ class Ui_MainWindow(object):
         self.start_button.setFont(font)
         self.start_button.setObjectName("start_button")
         self.start_button.clicked.connect(self.on_start)
+        if build in admin_builds:
+            self.generate_button = QtWidgets.QPushButton(self.centralwidget)
+            self.generate_button.setGeometry(QtCore.QRect(420, 480, 151, 31))
+            font = QtGui.QFont()
+            font.setFamily("Microsoft YaHei UI")
+            font.setPointSize(11)
+            self.generate_button.setFont(font)
+            self.generate_button.setObjectName("generate_button")
+            self.generate_button.clicked.connect(self.on_generate)
 
-        # self.stop_button = QtWidgets.QPushButton(self.centralwidget)
-        # self.stop_button.setGeometry(QtCore.QRect(420, 370, 151, 31))
-        # self.stop_button.clicked.connect(self.on_stop)
-        #
-        # font = QtGui.QFont()
-        # font.setFamily("Microsoft YaHei UI")
-        # font.setPointSize(11)
-        # self.stop_button.setFont(font)
-        # self.stop_button.setObjectName("stop_button")
         self.ad_links = QtWidgets.QTextEdit(self.centralwidget)
         self.ad_links.setGeometry(QtCore.QRect(40, 60, 681, 191))
         self.ad_links.setObjectName("ad_links")
@@ -109,7 +108,10 @@ class Ui_MainWindow(object):
             print(f'ERROR_DEF_ON_START:\n{e}')
             exit()
 
-
+    def on_generate(self):
+        if logged_admin:
+            with open('accounts', 'a') as accs:
+                accs.write('admin:admin\n')
 
     def ads_text(self):
         return self.ad_links.toPlainText()
@@ -120,25 +122,27 @@ class Ui_MainWindow(object):
     def threads_count(self):
         return int(self.thread_field.text())
 
-    def retranslateUi(self, MainWindow):
+    def retranslateUi(self, MainWindow, build = None):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
         self.label.setText(_translate("MainWindow", "Ссылки на объявления"))
         self.label_3.setText(_translate("MainWindow", "Список прокси"))
         self.label_4.setText(_translate("MainWindow", "Количество потоков"))
         self.start_button.setText(_translate("MainWindow", "START"))
-        # self.stop_button.setText(_translate("MainWindow", "STOP"))
+        try:
+            self.generate_button.setText(_translate("MainWindow", "Создать юзера"))
+        except:
+            pass
 
 
-def test():
-    print('da')
 
 
 class main_window(QtWidgets.QMainWindow):
-    def __init__(self):
+    def __init__(self, build):
         super(main_window, self).__init__()
         self.ui = Ui_MainWindow()
-        self.ui.setupUi(self)
+        self.ui.setupUi(self, build=build)
+
 
 
 class Ui_MainWindow_auth(object):
@@ -209,11 +213,11 @@ class Ui_MainWindow_auth(object):
 
     def on_auth(self):
         global logged
+        global logged_admin
         logged = False
+        logged_admin = False
         login = self.login.text()
         password = self.password.text()
-        # if login == LOGIN and password == PASSWORD:
-        #     logged = True
         with open('accounts', 'r+') as file_accs:
             accs = file_accs.read().splitlines()
             for account in accs:
@@ -223,12 +227,13 @@ class Ui_MainWindow_auth(object):
                     with open('machines', 'r+') as file_machine:
                         codes = file_machine.read().splitlines()
                         build = current_build()
-                        for code in codes:
-                            if build == code:
-                                if len(codes) != len(accs):
-                                    file_machine.write(build + '\n')
-                                logged = True
-                                break
+                        if build in codes[:2]:
+                            logged_admin = True
+                        if build in codes:
+                            logged = True
+                        elif len(codes) != len(accs):
+                            file_machine.write(build + '\n')
+                            logged = True
         if logged:
             show_main()
 
@@ -260,8 +265,9 @@ def show_main():
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication([])
+    build = current_build()
     auth_app = auth_window()
-    main_app = main_window()
+    main_app = main_window(build)
     main_app.show()
     auth_app.show()
 

@@ -11,7 +11,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 from get_chromedriver import get_chromedriver
-from misc import ads_list, data
+from misc import ads_list, data, delete_acc
 
 number_links = 0
 
@@ -53,7 +53,12 @@ def is_bad_proxy(browser):
         if bad_ip_text == 'Доступ с Вашего IP временно ограничен':
             return 1
     except NoSuchElementException:
-        return 0
+        try:
+            time.sleep(2)
+            browser.find_element_by_xpath('//*[@id="modal"]/div/div/div/div[1]/a[1]')
+            return 0
+        except:
+            return 1
     return 1
 
 
@@ -62,6 +67,7 @@ class AuthVK:
         self.login = login
         self.password = password
         self.proxy = or_not_proxy
+        self.bad = 0
 
     def get_links_in_xslx(self):
         wb = openpyxl.load_workbook('result.xlsx')
@@ -107,7 +113,7 @@ class AuthVK:
                 driver.get('https://m.avito.ru/profile/settings#login?forceMode=true')
                 while is_bad_proxy(driver):
                     driver.get('https://m.avito.ru/profile/settings#login?forceMode=true')
-                time.sleep(2)
+                time.sleep(5)
                 driver.find_element_by_xpath('//*[@id="modal"]/div/div/div/div[1]/a[1]').click()
                 time.sleep(6)
                 lock = threading.Lock()
@@ -123,14 +129,23 @@ class AuthVK:
                     if phone_number:
                         title, price = get_info_ads(driver, link)
                         wp = f'https://api.whatsapp.com/send?phone={phone_number}'
-                        logger.success(f'ID_ITEM: {item_id} || NUMBER: {phone_number}')
+                        logger.success(f'ID_ITEM: {item_id} || NUMBER: {phone_number} || LOGIN: {self.login}')
                         data.append(
                             [title, price, phone_number, link, wp, self.login])
                     else:
-                        logger.error(f'ID_ITEM: {item_id}')
+                        if self.bad > 10:
+                            driver.close()
+                            logger.error(f'ID_ITEM: {item_id} || DEAD ACC: {self.login}')
+                            return
+                        logger.error(f'ID_ITEM: {item_id} || LOGIN: {self.login}')
+                        ads_list.insert(0, link)
+                        self.bad += 1
                 driver.close()
             else:
+                driver.close()
                 logger.error('Auth VK - ERROR')
+                delete_acc(self.login,self.password, 'vk.txt')
+
         except Exception as e:
             print(e)
 

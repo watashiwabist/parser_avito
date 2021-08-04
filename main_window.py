@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import random
 # Form implementation generated from reading ui file 'main_window.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.4
@@ -13,8 +12,9 @@ import time
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
-from main_parser import start_vk
-from misc import ads_list, proxy_list, create_csv, LOGIN, PASSWORD, current_build, threads, vk, ok, admin_builds
+from main_parser import start
+from misc import ads_list, proxy_list, create_csv, current_build, vk, ok, admin_builds, \
+    out_bad, encode, hash_crypt, bad_ads, bad_proxy
 
 
 class Ui_MainWindow(object):
@@ -55,15 +55,6 @@ class Ui_MainWindow(object):
         self.start_button.setFont(font)
         self.start_button.setObjectName("start_button")
         self.start_button.clicked.connect(self.on_start)
-        if build in admin_builds:
-            self.generate_button = QtWidgets.QPushButton(self.centralwidget)
-            self.generate_button.setGeometry(QtCore.QRect(420, 480, 151, 31))
-            font = QtGui.QFont()
-            font.setFamily("Microsoft YaHei UI")
-            font.setPointSize(11)
-            self.generate_button.setFont(font)
-            self.generate_button.setObjectName("generate_button")
-            self.generate_button.clicked.connect(self.on_generate)
 
         self.ad_links = QtWidgets.QTextEdit(self.centralwidget)
         self.ad_links.setGeometry(QtCore.QRect(40, 60, 681, 191))
@@ -86,32 +77,42 @@ class Ui_MainWindow(object):
                 ads = self.ads_text().split('\n')
                 proxy = self.proxy_text().split('\n')
                 threads_was_opened = len(threading.enumerate())
-                [ads_list.append(url) for url in ads if url != '']
-                [proxy_list.append(data) for data in proxy if data != '']
+                [ads_list.append((url, 0)) for url in ads if url != '']
+                [proxy_list.append((data, 0)) for data in proxy if data != '']
                 or_not = True if len(proxy_list) > 0 else False
                 while len(vk) or len(ok):
                     if not len(ads_list):
                         break
                     for i in range((thread_count - len(threading.enumerate())) + threads_was_opened):
-                        # if len(ok):
-                        #     threading.Thread(target=start_vk,
-                        #                      args=(ok.pop().split(':'), random.choice(proxy_list))).start()
-                        if len(vk):
-                            threads.append(threading.Thread(target=start_vk, args=([vk.pop().split(':'), or_not])).start())
+                        if len(ok):
+                            acc = ok.pop()
+                            if acc != '':
+                                acc = acc.split(':')
+                            else:
+                                continue
+                            threading.Thread(target=start,
+                                             args=([acc, or_not, 0])).start()
+                        elif len(vk):
+                            acc = vk.pop()
+                            if acc != '':
+                                acc = acc.split(':')
+                            else:
+                                continue
+                            threading.Thread(target=start,
+                                             args=([acc, or_not, 1])).start()
                         else:
                             break
                     time.sleep(2)
                 while len(threading.enumerate()) != threads_was_opened:
                     time.sleep(2)
+                out_bad(bad_ads, 'bad_ads.txt')
+                out_bad(bad_proxy, 'bad_proxy.txt')
                 create_csv()
         except Exception as e:
             print(f'ERROR_DEF_ON_START:\n{e}')
             exit()
 
-    def on_generate(self):
-        if logged_admin:
-            with open('accounts', 'a') as accs:
-                accs.write('admin:admin\n')
+
 
     def ads_text(self):
         return self.ad_links.toPlainText()
@@ -129,10 +130,7 @@ class Ui_MainWindow(object):
         self.label_3.setText(_translate("MainWindow", "Список прокси"))
         self.label_4.setText(_translate("MainWindow", "Количество потоков"))
         self.start_button.setText(_translate("MainWindow", "START"))
-        try:
-            self.generate_button.setText(_translate("MainWindow", "Создать юзера"))
-        except:
-            pass
+
 
 
 
@@ -221,18 +219,20 @@ class Ui_MainWindow_auth(object):
         with open('accounts', 'r+') as file_accs:
             accs = file_accs.read().splitlines()
             for account in accs:
+                entered_acc = f'{login}:{password}'
+                crypted_entered = hash_crypt(encode(entered_acc))
                 if logged:
                     break
-                if f'{login}:{password}' == account:
+                if crypted_entered == account:
                     with open('machines', 'r+') as file_machine:
                         codes = file_machine.read().splitlines()
                         build = current_build()
-                        if build in codes[:2]:
+                        if build in admin_builds:
                             logged_admin = True
                         if build in codes:
                             logged = True
                         elif len(codes) != len(accs):
-                            file_machine.write(build + '\n')
+                            file_machine.write(f'{build}\n')
                             logged = True
         if logged:
             show_main()

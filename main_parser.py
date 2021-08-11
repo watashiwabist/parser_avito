@@ -14,8 +14,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 
 from get_chromedriver import get_chromedriver
 from misc import ads_list, data, delete_acc, key, proxy_list, id_generator, create_txt, auth_start, \
-    read_txt, check_balance, ok, vk, check_threads, hash_crypt, encode, output_txt, create_xlsx, sessid, ZERO_ACC, \
-    good_acc
+    read_txt, check_balance, ok, vk, check_threads, hash_crypt, encode, output_txt, create_xlsx, good_acc, sessid
 
 number_links = 0
 
@@ -230,7 +229,6 @@ class AuthVK:
         elif self.soc == 1:
             delete_acc(self.login, self.password, 'vk.txt')
 
-
     def click_vk_button(self, driver):
         driver.find_element_by_xpath('//*[@id="modal"]/div/div/div/div[1]/a[1]').click()
         time.sleep(8)
@@ -260,13 +258,19 @@ class AuthVK:
         except AttributeError:
             pass
 
+    def compare_with_lst(self):
+        for item in good_acc:
+            if self.login == item.login and self.password == item.password:
+                return True
+        return False
+
     @logger.catch()
     def test_auth_token(self):
         vk, ok = None, None
         lock = threading.Lock()
         driver, curr_proxy = get_driver(self.proxy)
         try:
-            if self.soc in [1,2]:
+            if self.soc == 1:
                 vk = self.auth_vk(driver)
             elif self.soc == 0:
                 ok = self.auth_ok(driver)
@@ -289,8 +293,6 @@ class AuthVK:
                     self.click_ok_button(driver)
                 elif vk:
                     self.click_vk_button(driver)
-                if vk and self.sess:
-                    sess = self.auth_sess(driver)
                 try:
                     check_auth = driver.find_element_by_xpath('/html/body/div[3]/div/div/div/div[2]').text
                     if str(check_auth).lower() == 'войти через телефон или почту':
@@ -302,7 +304,14 @@ class AuthVK:
                 except:
                     logger.success(f'Удачная авторизация в Авито || {self.login}')
                 time.sleep(3)
-                good_acc.append([self])
+                driver.refresh()
+                time.sleep(2)
+                if self.sess:
+                    sess = self.auth_sess(driver)
+                    if sess == 0:
+                        return
+                if not self.compare_with_lst():
+                    good_acc.append(self)
                 while ads_list:
                     lock.acquire()
                     link, bad = ads_list.pop()
@@ -371,10 +380,14 @@ class AuthVK:
             elif vk == 0:
                 driver.quit()
                 logger.error(f'Auth VK - ERROR || {self.login}')
+                if self.compare_with_lst():
+                    good_acc.remove(self)
                 self.delete_account()
             elif ok == 0:
                 driver.quit()
                 logger.error(f'Auth OK - ERROR || {self.login}')
+                if self.compare_with_lst():
+                    good_acc.remove(self)
                 self.delete_account()
 
             elif vk == -1:
@@ -414,26 +427,30 @@ class AuthVK:
             print(e)
 
     def auth_sess(self, driver):
-        old_profile = driver.find_element_by_xpath('//*[@id="app"]/div/div[2]/div[1]/div/div/div[1]/div[1]/div[1]/div/div[3]').text
         cookie = driver.get_cookie('sessid')
         cookie.update(value=self.sess)
         driver.add_cookie(cookie)
         driver.refresh()
-        if self.soc == 1:
-            self.click_vk_button(driver)
-        elif self.soc == 0:
-            self.click_ok_button(driver)
-        new_profile = driver.find_element_by_xpath('//*[@id="app"]/div/div[2]/div[1]/div/div/div[1]/div[1]/div[1]/div/div[3]')
-        if old_profile == new_profile:
-            curr_acc = f'{self.login}:{self.password}'
-            if curr_acc in good_acc:
-                good_acc.remove(curr_acc)
+        time.sleep(3)
+        try:
+            new_profile = driver.find_element_by_xpath(
+                '//*[@id="app"]/div/div[2]/div[1]/div/div/div[1]/div[1]/div[1]/div/div[3]').text
+        except:
+            logger.error(f'Не работающие sessid || {self.sess} || Удаляю')
+            driver.quit()
+            return 0
+        logger.success('Удачная авторизация через sessid')
         return 1
-
 
 
 def start(autorization):
     autorization.test_auth_token()
+
+
+def end():
+    output_txt('unparsed_links.txt', ads_list)
+    ads_list.clear()
+    return
 
 
 if __name__ == '__main__':
@@ -474,6 +491,7 @@ if __name__ == '__main__':
                         for _ in range((thread_count - len(threading.enumerate())) + threads_was_opened):
                             soc = None
                             acc = None
+                            sess = None
                             if len(ok):
                                 acc = ok.pop()
                                 soc = 0
@@ -485,20 +503,21 @@ if __name__ == '__main__':
                                     sess = sessid.pop()
                             else:
                                 logger.info('Аккаунты закончились')
-                                check_threads(threads_was_opened, thread_count)
-                                raise Exception('NoAccsException')
-                            if not acc:
+                                check_threads(threads_was_opened, thread_count, final=True)
+                                end()
+                                break
+                            if not acc and not sess:
                                 continue
-                            elif soc != 2:
+                            elif not sess:
                                 autorization = AuthVK(*acc.split(':'), or_not, soc)
                             else:
-                                autorization = good_acc.pop()[0]
+                                autorization = good_acc[0]
                                 autorization.sess = sess
                             logger.info(
                                 f'Запущено потоков: {len(threading.enumerate()) - threads_was_opened}\nЗапускаю еще один поток.')
                             threading.Thread(target=start, args=([autorization])).start()
                         check_threads(threads_was_opened, thread_count)
-                    check_threads(threads_was_opened, thread_count)
+                    check_threads(threads_was_opened, thread_count, final=True)
                     create_xlsx()
                 elif action == '2' and logged_admin:
                     while True:

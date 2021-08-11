@@ -45,6 +45,7 @@ with open('sessid.txt', 'r', encoding=encode_str) as sessid:
     sessid = sessid.read()
     sessid = sessid.split('\n') if sessid != '' else ''
 
+
 def id_generator(size=5, chars=string.ascii_lowercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
 
@@ -83,7 +84,9 @@ def delete_acc(login, password, path):
     with open(path, 'r+') as file:
         accs = file.readlines()
         accs = [i.strip() for i in accs]
-        accs.remove(f'{login}:{password}')
+        acc = f'{login}:{password}'
+        if acc in accs:
+            accs.remove(f'{login}:{password}')
     with open(path, 'w') as file:
         [file.write(f'{acc}\n') for acc in accs]
 
@@ -109,7 +112,10 @@ def create_txt(path):
 
 def output_txt(path, acc):
     with open(path, 'a') as file:
-        file.write(f'{acc}\n')
+        if type(acc) == list:
+            map(lambda x: file.write(f'{x[0]}\n' if path == 'unparsed_links.txt' else f'{x}\n'), acc)
+        else:
+            file.write(f'{acc}\n')
 
 
 def check_login(login, password):
@@ -153,10 +159,10 @@ def check_balance(api_key):
         return -1
 
 
-def check_threads(threads_was_opened, thread_count):
+def check_threads(threads_was_opened, thread_count, final=None):
     try:
         while len(threading.enumerate()) != threads_was_opened:
-            if (thread_count + threads_was_opened > len(threading.enumerate())) and len(good_acc):
+            if not final and (thread_count + threads_was_opened > len(threading.enumerate())) and len(good_acc):
                 break
             time.sleep(0.5)
     except:

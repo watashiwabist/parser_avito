@@ -229,6 +229,7 @@ class AuthVK:
         elif self.soc == 1:
             delete_acc(self.login, self.password, 'vk.txt')
 
+
     def click_vk_button(self, driver):
         driver.find_element_by_xpath('//*[@id="modal"]/div/div/div/div[1]/a[1]').click()
         time.sleep(8)
@@ -412,10 +413,15 @@ class AuthVK:
                         self.bad += 1
                         if self.bad >= 10:
                             driver.quit()
-                            logger.error(f'ID_ITEM: {item_id} || DEAD ACC: {self.sess}'
+                            logger.error(f'ID_ITEM: {item_id} || Наступил лимит на аккаунте, попробуйте загрузить его позже: {self.sess}'
                                          if self.sess
-                                         else f'ID_ITEM: {item_id} || DEAD ACC: {self.login}')
-                            self.delete_account()
+                                         else f'ID_ITEM: {item_id} || Наступил лимит на аккаунте, попробуйте загрузить его позже: {self.login}')
+                            if self.sess:
+                                output_txt('SESS_LIMIT.txt', self.sess)
+                            elif self.soc == 0:
+                                output_txt('OK_LIMIT.txt', f'{self.login}:{self.password}')
+                            elif self.soc == 1:
+                                output_txt('VK_LIMIT.txt', f'{self.login}:{self.password}')
                             return
                 driver.quit()
             elif vk == 0:
@@ -550,6 +556,7 @@ if __name__ == '__main__':
                             else:
                                 logger.info('Аккаунты закончились')
                                 check_threads(threads_was_opened, thread_count, final=True)
+                                end()
                                 break
                             if not acc and not sess:
                                 time.sleep(0.5)
@@ -568,7 +575,6 @@ if __name__ == '__main__':
                         check_threads(threads_was_opened, thread_count)
                     check_threads(threads_was_opened, thread_count, final=True)
                     create_xlsx()
-                    end()
                     logger.success('Работа завершена.')
                 elif action == '2' and logged_admin:
                     while True:

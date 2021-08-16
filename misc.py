@@ -61,10 +61,10 @@ def hash_crypt(text):
 
 
 def create_xlsx():
-    print('create')
     df = pd.DataFrame(data, columns=['Название', 'Цена', 'Номер', 'Ссылка', 'WP', 'Логин'])
     df = df.set_index(df['Логин']).sort_index().drop(['Логин'], axis=1)
     df.to_excel('result.xlsx')
+
 
 
 def out_bad(lst, path):
@@ -114,11 +114,10 @@ def output_txt(path, acc):
     with open(path, 'a') as file:
         if type(acc) == list:
             for i in acc:
-                pass
-            if path == 'UNPARSED_LINKS.txt':
-                file.write(f'{i[0]}\n')
-            else:
-                file.write(f'{i}\n')
+                if path == 'UNPARSED_LINKS.txt':
+                    file.write(f'{i[0]}\n')
+                else:
+                    file.write(f'{i}\n')
         else:
             file.write(f'{acc}\n')
 

@@ -3,7 +3,7 @@ import os
 import re
 import threading
 import time
-
+import copy
 import openpyxl
 from loguru import logger
 from python_anticaptcha import AnticaptchaClient, ImageToTextTask
@@ -259,10 +259,15 @@ class AuthVK:
             pass
 
     def compare_with_lst(self):
-        for item in good_acc:
+        for index, item in enumerate(good_acc):
             if self.login == item.login and self.password == item.password:
-                return True
+                return index
         return False
+
+    def del_from_list(self):
+        index = self.compare_with_lst()
+        if index:
+            del good_acc[index]
 
     @logger.catch()
     def test_auth_token(self):
@@ -290,9 +295,27 @@ class AuthVK:
                     lock.release()
                     self.test_auth_token()
                 if ok:
-                    self.click_ok_button(driver)
+                    try:
+                        self.click_ok_button(driver)
+                    except:
+                        driver.quit()
+                        logger.error(f'Auth OK - ERROR || {self.login}')
+                        self.del_from_list()
+                        if self.sess:
+                            sessid.append(self.sess)
+                        self.delete_account()
+                        return
                 elif vk:
-                    self.click_vk_button(driver)
+                    try:
+                        self.click_vk_button(driver)
+                    except:
+                        driver.quit()
+                        logger.error(f'Auth VK - ERROR || {self.login}')
+                        self.del_from_list()
+                        if self.sess:
+                            sessid.append(self.sess)
+                        self.delete_account()
+                        return
                 try:
                     check_auth = driver.find_element_by_xpath('/html/body/div[3]/div/div/div/div[2]').text
                     if str(check_auth).lower() == 'войти через телефон или почту':
@@ -301,6 +324,12 @@ class AuthVK:
                         self.delete_account()
                         driver.quit()
                         return
+                    elif 'новый код' in str(check_auth).lower():
+                        logger.error(
+                            f'BAN IN AVITO || VK - {self.login}' if vk else f'BAN IN AVITO || OK - {self.login}')
+                        self.delete_account()
+                        driver.quit()
+                        return 0
                 except:
                     logger.success(f'Удачная авторизация в Авито || {self.login}')
                 time.sleep(3)
@@ -313,8 +342,12 @@ class AuthVK:
                 if not self.compare_with_lst():
                     good_acc.append(self)
                 while ads_list:
+
                     lock.acquire()
-                    link, bad = ads_list.pop()
+                    if ads_list:
+                        link, bad = ads_list.pop()
+                    else:
+                        return
                     while (ads_list and 'avito.ru' not in str(link)) or bad >= 5:
                         link, bad = ads_list.pop()
                     lock.release()
@@ -363,31 +396,41 @@ class AuthVK:
                             self.bad += 1
                             return
                         wp = f'https://api.whatsapp.com/send?phone={phone_number}'
-                        logger.success(f'ID_ITEM: {item_id} || NUMBER: {phone_number} || LOGIN: {self.login}')
+                        logger.success(
+                            f'ID_ITEM: {item_id} || NUMBER: {phone_number} || SESSID: {self.sess}'
+                            if self.sess
+                            else f'ID_ITEM: {item_id} || NUMBER: {phone_number} || LOGIN: {self.login}')
                         self.bad = 0
                         data.append(
-                            [title, price, phone_number, link, wp, self.login])
+                            [title, price, phone_number, link, wp, self.sess if self.sess else self.login])
+                        output_txt('PARSED_LINKS.txt', link)
                     else:
-                        logger.error(f'ID_ITEM: {item_id} || LOGIN: {self.login}')
+                        logger.error(f'ID_ITEM: {item_id} || SESSID: {self.sess}'
+                                     if self.sess
+                                     else f'ID_ITEM: {item_id} || LOGIN: {self.login}')
                         ads_list.insert(0, (link, bad + 1))
                         self.bad += 1
                         if self.bad >= 10:
                             driver.quit()
-                            logger.error(f'ID_ITEM: {item_id} || DEAD ACC: {self.login}')
+                            logger.error(f'ID_ITEM: {item_id} || DEAD ACC: {self.sess}'
+                                         if self.sess
+                                         else f'ID_ITEM: {item_id} || DEAD ACC: {self.login}')
                             self.delete_account()
                             return
                 driver.quit()
             elif vk == 0:
                 driver.quit()
                 logger.error(f'Auth VK - ERROR || {self.login}')
-                if self.compare_with_lst():
-                    good_acc.remove(self)
+                self.del_from_list()
+                if self.sess:
+                    sessid.append(self.sess)
                 self.delete_account()
             elif ok == 0:
                 driver.quit()
                 logger.error(f'Auth OK - ERROR || {self.login}')
-                if self.compare_with_lst():
-                    good_acc.remove(self)
+                self.del_from_list()
+                if self.sess:
+                    sessid.append(self.sess)
                 self.delete_account()
 
             elif vk == -1:
@@ -439,7 +482,7 @@ class AuthVK:
             logger.error(f'Не работающие sessid || {self.sess} || Удаляю')
             driver.quit()
             return 0
-        logger.success('Удачная авторизация через sessid')
+        logger.success(f'Удачная авторизация через sessid || {self.sess}')
         return 1
 
 
@@ -448,7 +491,8 @@ def start(autorization):
 
 
 def end():
-    output_txt('unparsed_links.txt', ads_list)
+    output_txt('UNPARSED_LINKS.txt', ads_list)
+    logger.info(f'Создан файл UNPARSED_LINKS.txt с {len(ads_list)} необработанными ссылками.')
     ads_list.clear()
     return
 
@@ -488,7 +532,9 @@ if __name__ == '__main__':
                     threads_was_opened = len(threading.enumerate())
                     or_not = True if len(proxy_list) > 0 else False
                     while ads_list:
-                        for _ in range((thread_count - len(threading.enumerate())) + threads_was_opened):
+                        rng = (thread_count - len(threading.enumerate())) + threads_was_opened
+                        _ = 0
+                        while _ < rng:
                             soc = None
                             acc = None
                             sess = None
@@ -504,21 +550,26 @@ if __name__ == '__main__':
                             else:
                                 logger.info('Аккаунты закончились')
                                 check_threads(threads_was_opened, thread_count, final=True)
-                                end()
                                 break
                             if not acc and not sess:
+                                time.sleep(0.5)
                                 continue
                             elif not sess:
                                 autorization = AuthVK(*acc.split(':'), or_not, soc)
                             else:
-                                autorization = good_acc[0]
+                                autorization = copy.deepcopy(good_acc[0])
                                 autorization.sess = sess
+                            if not ads_list:
+                                break
                             logger.info(
                                 f'Запущено потоков: {len(threading.enumerate()) - threads_was_opened}\nЗапускаю еще один поток.')
                             threading.Thread(target=start, args=([autorization])).start()
+                            _ += 1
                         check_threads(threads_was_opened, thread_count)
                     check_threads(threads_was_opened, thread_count, final=True)
                     create_xlsx()
+                    end()
+                    logger.success('Работа завершена.')
                 elif action == '2' and logged_admin:
                     while True:
                         login = 'user'

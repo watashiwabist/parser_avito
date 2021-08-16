@@ -113,7 +113,12 @@ def create_txt(path):
 def output_txt(path, acc):
     with open(path, 'a') as file:
         if type(acc) == list:
-            map(lambda x: file.write(f'{x[0]}\n' if path == 'unparsed_links.txt' else f'{x}\n'), acc)
+            for i in acc:
+                pass
+            if path == 'UNPARSED_LINKS.txt':
+                file.write(f'{i[0]}\n')
+            else:
+                file.write(f'{i}\n')
         else:
             file.write(f'{acc}\n')
 
